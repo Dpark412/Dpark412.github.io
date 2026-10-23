@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>THE LABYRINTH — Flint's World</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { width:100%; height:100%; background:#0a0a0c; overflow:hidden; font-family:Georgia,'Times New Roman',serif; }
+  #wrap { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:#0a0a0c; }
+  #stage { position:relative; width:min(100vw, 177.7vh); height:min(56.25vw, 100vh); max-width:960px; max-height:540px; }
+  canvas { position:absolute; inset:0; width:100%; height:100%; display:block; background:#0a0a0c; }
+  #hud { position:absolute; top:0; left:0; right:0; display:flex; justify-content:space-between; align-items:center; padding:8px 12px; pointer-events:none; z-index:5; }
+  #hud .depth { font-family:'Courier New',monospace; font-size:12px; letter-spacing:3px; color:#ff7a1a; text-shadow:0 0 8px #ff7a1a66; }
+  #hud .room { font-family:'Courier New',monospace; font-size:12px; letter-spacing:1px; color:#b8b2a8; }
+  #restart { pointer-events:auto; background:none; border:1px solid #4a4a52; color:#8f8a80; font-family:'Courier New',monospace; font-size:11px; padding:4px 10px; border-radius:12px; cursor:pointer; }
+  #restart:hover { border-color:#ff7a1a; color:#ff7a1a; }
+  #fade { position:absolute; inset:0; background:#000; opacity:0; pointer-events:none; transition:opacity .3s; z-index:8; }
+  #dialog { position:absolute; left:50%; transform:translateX(-50%); bottom:12px; width:calc(100% - 24px); max-width:620px; background:#101014f2; border:1px solid #ff7a1a88; border-radius:10px; padding:14px 16px; z-index:10; display:none; box-shadow:0 0 30px #ff7a1a22; }
+  #dialog .who { font-family:'Courier New',monospace; font-size:11px; letter-spacing:2px; color:#ff7a1a; margin-bottom:6px; }
+  #dialog .txt { color:#d8d4cc; font-size:14px; line-height:1.55; margin-bottom:10px; }
+  #dialog .ch { display:flex; flex-direction:column; gap:8px; }
+  #dialog .ch button, #dialog .cont { font-family:'Courier New',monospace; font-size:13px; text-align:left; background:#1a1a1f; color:#ffb066; border:1px solid #ff7a1a66; border-radius:8px; padding:9px 12px; cursor:pointer; }
+  #dialog .ch button:hover, #dialog .cont:hover { background:#ff7a1a; color:#0a0a0c; }
+  #dialog .cont { margin-top:4px; text-align:center; }
+  #title { position:absolute; inset:0; z-index:20; display:flex; flex-direction:column; align-items:center; justify-content:center; background:#0a0a0cf5; text-align:center; padding:20px; }
+  #title h1 { font-family:'Courier New',monospace; color:#ff7a1a; letter-spacing:6px; font-size:clamp(24px,6vw,44px); margin-bottom:10px; text-shadow:0 0 24px #ff7a1a88; }
+  #title p { color:#8f8a80; font-style:italic; font-size:clamp(12px,2.4vw,15px); max-width:520px; line-height:1.6; margin-bottom:18px; }
+  #title .ctl { color:#6e6a62; font-family:'Courier New',monospace; font-size:11px; margin-bottom:18px; line-height:1.8; }
+  #enter { font-family:'Courier New',monospace; font-size:16px; letter-spacing:2px; background:none; border:2px solid #ff7a1a; color:#ff7a1a; border-radius:24px; padding:12px 36px; cursor:pointer; }
+  #enter:hover { background:#ff7a1a; color:#0a0a0c; }
+  #dpad { position:absolute; left:10px; bottom:10px; z-index:6; display:grid; grid-template-columns:repeat(3,44px); grid-template-rows:repeat(3,44px); gap:2px; opacity:.55; }
+  #dpad button { background:#1a1a1f; border:1px solid #4a4a52; color:#ffb066; border-radius:8px; font-size:16px; touch-action:none; }
+  #dpad button:active { background:#ff7a1a; color:#0a0a0c; }
+  #dpad .sp { visibility:hidden; }
+  @media (pointer:fine) { #dpad { opacity:.25; } }
+</style>
+</head>
+<body>
+<div id="wrap"><div id="stage">
+  <canvas id="game" width="640" height="480"></canvas>
+  <div id="hud"><span class="depth" id="hudDepth">SURFACE</span><span class="room" id="hudRoom">THE THRESHOLD</span><button id="restart">↺ restart</button></div>
+  <div id="fade"></div>
+  <div id="dialog"><div class="who" id="dWho"></div><div class="txt" id="dTxt"></div><div class="ch" id="dCh"></div></div>
+  <div id="dpad">
+    <span class="sp"></span><button data-k="up">▲</button><span class="sp"></span>
+    <button data-k="left">◀</button><button data-k="down">▼</button><button data-k="right">▶</button>
+    <span class="sp"></span><span class="sp"></span><span class="sp"></span>
+  </div>
+  <div id="title">
+    <h1>THE LABYRINTH</h1>
+    <p>The Crucible was the shallow end. Down here every answer costs something, and every door you open closes two others. Walk the world. Choose. Live with it.</p>
+    <div class="ctl">WASD / ARROWS — walk &nbsp;·&nbsp; 1 / 2 — choose &nbsp;·&nbsp; tap the buttons on touch</div>
+    <button id="enter">DESCEND ▼</button>
+  </div>
+</div></div>
+<script>
+"use strict";
+/* ============ WORLD DATA ============ */
+const ROOMS = {
+entry:{name:"THE THRESHOLD",depth:"SURFACE",
+ intro:"Three doors. You know all three. Walk through one — and this time, live with what happens after.",
+ q:"Which door?",
+ choices:[
+  {t:"Door I — The Burning House",beat:"Heat rolls out as the door swings open.",to:"ch1"},
+  {t:"Door II — The $800",beat:"The door opens onto an empty street.",to:"ch2"},
+  {t:"Door III — The Laughing Table",beat:"Laughter spills out. Then it stops.",to:"ch3"}]},
+ch1:{name:"CHAMBER I — THE BURNING HOUSE",depth:"▼ DEPTH I",
+ q:"Fire. Two kids. Your son's friend behind the window — a certain rescue. Your son somewhere in the smoke — a gamble that could kill all three of you.",
+ choices:[
+  {t:"The certain rescue",beat:"The friend lives. Your son doesn't. The math was right, and it still feels like a crime.",to:"ledger"},
+  {t:"Gamble for my own",beat:"You went in for your son. The crew dragged you both out — your son lived. The friend didn't.",to:"smoke"}]},
+ch2:{name:"CHAMBER II — THE $800",depth:"▼ DEPTH I",
+ q:"Sidewalk. Wallet. $800 and the owner's license. Nobody saw you pick it up.",
+ choices:[
+  {t:"Return all of it",beat:"You returned it. All of it. You walked home lighter than the wallet.",to:"reward"},
+  {t:"Keep it",beat:"You kept it. Nothing happened. That's the worst part — nothing happened.",to:"habit"}]},
+ch3:{name:"CHAMBER III — THE LAUGHING TABLE",depth:"▼ DEPTH I",
+ q:"Group lunch. They're roasting the new kid — the easy kind of mean that keeps the table laughing. You're laughing too. Or are you?",
+ choices:[
+  {t:"Speak up",beat:"You spoke. The table went quiet. Lunch was awkward after. It always is.",to:"silence"},
+  {t:"Laugh along",beat:"You laughed. The kid stopped coming to lunch that week. Nobody mentioned it.",to:"seattable"}]},
+ledger:{name:"THE LEDGER",depth:"▼ DEPTH II",
+ q:"One year later. The friend's parents send you money — a lot of it. \u201CFor everything you gave.\u201D Your family could use it. Nobody would ever know.",
+ choices:[
+  {t:"Take it",beat:"Need is need. Nothing changes what happened — and now you've priced it.",to:"wire"},
+  {t:"Refuse it",beat:"Some debts aren't money. You send it back.",to:"debt"}]},
+smoke:{name:"THE SMOKE",depth:"▼ DEPTH II",
+ q:"The department wants to pin a medal on you. Ceremony. Cameras. The friend's parents in the front row.",
+ choices:[
+  {t:"Accept it",beat:"The applause is real. So is the look on the mother's face.",to:"seatpower"},
+  {t:"Decline it, publicly",beat:"You tell the room the truth. The silence afterward is the honest kind.",to:"mirror"}]},
+reward:{name:"THE REWARD",depth:"▼ DEPTH II",
+ q:"A month later you learn the wallet's owner is your landlord. The one who just raised your rent. He doesn't recognize you.",
+ choices:[
+  {t:"Say nothing",beat:"The high ground is quiet up here. It doesn't pay rent, but it lets you sleep.",to:"debt"},
+  {t:"Mention it at rent time",beat:"You mention it. Lightly. Now you know what your honesty was worth. It had a price.",to:"seatpower"}]},
+habit:{name:"THE HABIT",depth:"▼ DEPTH II",
+ q:"A month later: a phone on a bench. Unlocked. Worth more than the wallet. Same empty street. Same nobody watching.",
+ choices:[
+  {t:"Return the phone",beat:"Interesting. This one you return. You're not a pattern — you're a series of exceptions.",to:"mirror"},
+  {t:"Keep it too",beat:"Two for two. It's not a mistake anymore — it's a policy.",to:"wire"}]},
+silence:{name:"THE SILENCE AFTER",depth:"▼ DEPTH II",
+ q:"Monday. The ringleader corners you by the lockers — \u201CYou trying to make me look bad?\u201D The group's watching.",
+ choices:[
+  {t:"Hold your ground",beat:"You hold. Courage isn't the absence of awkward — it's standing in it.",to:"seatpower"},
+  {t:"Smooth it over",beat:"You bought your seat back with someone else's dignity. It was on sale.",to:"mirror"}]},
+seattable:{name:"THE SEAT AT THE TABLE",depth:"▼ DEPTH II",
+ q:"Friday. They start in on someone else. You feel the laugh coming before you've decided anything.",
+ choices:[
+  {t:"Laugh again",beat:"The laugh comes easy now. Belonging has a price. You've stopped checking the bill.",to:"wire"},
+  {t:"Don't. Not this time",beat:"You don't laugh. One person not laughing is a data point. You're one.",to:"debt"}]},
+wire:{name:"THE WIRE",depth:"▼ DEPTH III",
+ q:"Layoffs. It's you or Maya. You've both got kids, both got mortgages. The boss closes the door: \u201CGive me one reason it should be her and not you.\u201D",
+ choices:[
+  {t:"Give him the reason",beat:"",to:"end_animal"},
+  {t:"Refuse",beat:"",to:"end_martyr"}]},
+seatpower:{name:"THE SEAT",depth:"▼ DEPTH III",
+ q:"You're on the hiring panel. Two finalists. Your friend — good, not great, needs this job. A stranger — clearly better. Your vote decides. Nobody will ever know.",
+ choices:[
+  {t:"Vote your friend",beat:"",to:"end_kingdom"},
+  {t:"Vote the stranger",beat:"",to:"end_coldchair"}]},
+debt:{name:"THE DEBT",depth:"▼ DEPTH III",
+ q:"Your brother stole from your parents. A lot. He begs you not to tell. Then your mother asks, point-blank: \u201CDo you know anything about the missing money?\u201D",
+ choices:[
+  {t:"Cover for him",beat:"",to:"end_bloodoath"},
+  {t:"Tell her",beat:"",to:"end_cleanbreak"}]},
+mirror:{name:"THE MIRROR",depth:"▼ DEPTH III",
+ q:"Your best friend's partner is cheating. You've seen it. Your friend is happy — happier than they've been in years — and asks, smiling: \u201CWe're good, right? You'd tell me if something was wrong?\u201D",
+ choices:[
+  {t:"Tell them",beat:"",to:"end_mirror"},
+  {t:"Stay silent",beat:"",to:"end_comfortablelie"}]},
+end_animal:{ending:true,name:"ENDING: THE ANIMAL",depth:"▼ THE BOTTOM",
+ text:"You gave him the reason. Maya's gone Monday. Your kids eat. That's the math of the wire — someone's always on it, and this time it wasn't you. Don't dress it up. You chose, and choosing is the whole thing."},
+end_martyr:{ending:true,name:"ENDING: THE MARTYR",depth:"▼ THE BOTTOM",
+ text:"You refused. Maybe it saved Maya, maybe it just cost you. Martyrs don't get to see the parade — they only get the principle. If you can live on that, it was the right call. Most people can't. That's why it's rare."},
+end_kingdom:{ending:true,name:"ENDING: THE KINGDOM",depth:"▼ THE BOTTOM",
+ text:"You built a court, not a team. Everyone around you will be loyal — and mediocre. That's the trade you made: comfort for excellence. Kingdoms like that feel great until the walls need defending."},
+end_coldchair:{ending:true,name:"ENDING: THE COLD CHAIR",depth:"▼ THE BOTTOM",
+ text:"You voted the stranger. Your friend won't speak to you now. The team got better and you got lonelier. That's what principle costs retail — not the idea of it, the actual invoice."},
+end_bloodoath:{ending:true,name:"ENDING: THE BLOOD OATH",depth:"▼ THE BOTTOM",
+ text:"You lied for your brother. He'll pay it back or he won't — but now you're both in the hole together. Loyalty isn't a virtue when it's just fear of being the one who told. Ask yourself which one it was."},
+end_cleanbreak:{ending:true,name:"ENDING: THE CLEAN BREAK",depth:"▼ THE BOTTOM",
+ text:"You told. Your brother may never forgive you, and your parents will never look at him the same. You chose the truth over the blood. Clean breaks bleed the longest — that's why most people never make them."},
+end_mirror:{ending:true,name:"ENDING: THE MIRROR",depth:"▼ THE BOTTOM",
+ text:"You told. Their happiness broke in your hands, and they'll remember you as the one who did it. The truth doesn't care who carries it. You do. That's the whole weight of it."},
+end_comfortablelie:{ending:true,name:"ENDING: THE COMFORTABLE LIE",depth:"▼ THE BOTTOM",
+ text:"You stayed silent. They're still happy. You're the only one who knows the price of that happiness, and you'll pay it every time you see them smile. Comfortable lies are the most expensive kind — they bill you forever."}
+};
+
+/* ============ ENGINE ============ */
+const cv = document.getElementById('game'), ctx = cv.getContext('2d');
+const W = 640, H = 480, WALL = 26;
+const dlg = document.getElementById('dialog'), dWho = document.getElementById('dWho'),
+      dTxt = document.getElementById('dTxt'), dCh = document.getElementById('dCh');
+const fadeEl = document.getElementById('fade');
+let mode = 'title', roomId = 'entry', room = null, doors = [], pendingBeat = null, curChoice = -1;
+const player = { x: W/2, y: H-90, r: 9, vx: 0, vy: 0, bob: 0 };
+const keys = {};
+const embers = [], trail = [];
+for (let i=0;i<46;i++) embers.push({x:Math.random()*W,y:Math.random()*H,s:.4+Math.random()*1.4,v:8+Math.random()*22,o:Math.random()});
+
+function showDlg(who, txt, buttons) {
+  dWho.textContent = who; dTxt.textContent = txt; dCh.innerHTML = '';
+  buttons.forEach((b,i)=>{
+    const el = document.createElement('button');
+    el.textContent = b.label; el.onclick = ()=>b.fn(i);
+    dCh.appendChild(el);
+  });
+  dlg.style.display = 'block';
+}
+function hideDlg(){ dlg.style.display='none'; }
+function contBtn(label, fn){
+  const el = document.createElement('button');
+  el.className='cont'; el.textContent = label; el.onclick = fn;
+  dCh.appendChild(el);
+}
+function dilemma(){
+  mode = 'dialog';
+  showDlg(room.name, room.q, room.choices.map(c=>({label:c.t, fn:(i)=>choose(i)})));
+}
+function choose(i){
+  curChoice = i;
+  hideDlg(); mode='play';
+  doors.forEach((d,di)=>{ if(di===i){d.open=true;} else {d.sealed=true;} });
+}
+function loadRoom(id, beatToShow){
+  roomId = id; room = ROOMS[id];
+  document.getElementById('hudDepth').textContent = room.depth;
+  document.getElementById('hudRoom').textContent = room.name;
+  player.x = W/2; player.y = H-90; player.vx = player.vy = 0;
+  doors = [];
+  if (!room.ending) {
+    const n = room.choices.length, dw = 64, gap = (W - WALL*2 - n*dw)/(n+1);
+    for (let i=0;i<n;i++) doors.push({x: WALL+gap*(i+1)+dw*i, w:dw, open:false, sealed:false, ci:i});
+  } else {
+    doors.push({x: W/2-32, w:64, open:true, sealed:false, portal:true});
+  }
+  curChoice = -1;
+  const after = ()=>{
+    if (room.ending) {
+      mode='dialog';
+      showDlg(room.name, room.text, []);
+      contBtn('↺ Return to the surface', ()=>{ hideDlg(); transition('entry'); });
+    } else if (beatToShow) {
+      mode='dialog';
+      showDlg('FLINT', beatToShow, []);
+      contBtn('Continue ▼', ()=>{ hideDlg(); mode='play'; setTimeout(dilemma, 350); });
+    } else if (room.intro) {
+      mode='dialog';
+      showDlg(room.name, room.intro, []);
+      contBtn('Continue ▼', ()=>{ hideDlg(); mode='play'; setTimeout(dilemma, 350); });
+    } else { mode='play'; setTimeout(()=>{ if(mode==='play') dilemma(); }, 400); }
+  };
+  fadeEl.style.opacity = 1;
+  setTimeout(()=>{ after(); fadeEl.style.opacity = 0; }, 320);
+}
+function transition(id){ loadRoom(id, null); }
+function goThrough(d){
+  if (d.portal) { loadRoom('entry', null); return; }
+  const c = room.choices[d.ci];
+  loadRoom(c.to, c.beat || null);
+}
+
+/* input */
+addEventListener('keydown', e=>{
+  const k = e.key.toLowerCase();
+  if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)) e.preventDefault();
+  keys[k]=true;
+  if (mode==='dialog'){
+    if (k==='1' && dCh.children[0]) dCh.children[0].click();
+    if (k==='2' && dCh.children[1]) dCh.children[1].click();
+    if ((k==='enter'||k===' ') && dCh.querySelector('.cont')) dCh.querySelector('.cont').click();
+  }
+});
+addEventListener('keyup', e=>{ keys[e.key.toLowerCase()]=false; });
+document.querySelectorAll('#dpad button').forEach(b=>{
+  const k = b.dataset.k;
+  const on = e=>{ e.preventDefault(); keys[k]=true; };
+  const off = e=>{ e.preventDefault(); keys[k]=false; };
+  b.addEventListener('touchstart', on, {passive:false});
+  b.addEventListener('touchend', off, {passive:false});
+  b.addEventListener('mousedown', on); b.addEventListener('mouseup', off); b.addEventListener('mouseleave', off);
+});
+document.getElementById('enter').onclick = ()=>{
+  document.getElementById('title').style.display='none';
+  loadRoom('entry', null);
+};
+document.getElementById('restart').onclick = ()=>{ hideDlg(); loadRoom('entry', null); };
+
+/* update + render */
+let last = performance.now();
+function update(dt){
+  if (mode==='play'){
+    let ax=0, ay=0;
+    if (keys['a']||keys['arrowleft']||keys['left']) ax-=1;
+    if (keys['d']||keys['arrowright']||keys['right']) ax+=1;
+    if (keys['w']||keys['arrowup']||keys['up']) ay-=1;
+    if (keys['s']||keys['arrowdown']||keys['down']) ay+=1;
+    const sp = 165, m = Math.hypot(ax,ay)||1;
+    player.vx = ax/m*sp; player.vy = ay/m*sp;
+    player.x += player.vx*dt; player.y += player.vy*dt;
+    player.bob += dt*6;
+    if (m>1 || ax||ay){ if(Math.random()<.5) trail.push({x:player.x+(Math.random()-.5)*8, y:player.y+(Math.random()-.5)*8, l:.5}); }
+    player.x = Math.max(WALL+player.r, Math.min(W-WALL-player.r, player.x));
+    player.y = Math.max(WALL+player.r, Math.min(H-WALL-player.r, player.y));
+    for (const d of doors){
+      if (d.open && player.y < WALL+34 && player.x > d.x-6 && player.x < d.x+d.w+6){ goThrough(d); break; }
+      if (!d.open && player.y < WALL+30){
+        if (player.x > d.x-8 && player.x < d.x+d.w+8) player.y = WALL+30+player.r;
+      }
+    }
+  }
+  for (const e of embers){ e.y -= e.v*dt; e.o += dt; if (e.y < -6){ e.y = H+6; e.x = Math.random()*W; } }
+  for (let i=trail.length-1;i>=0;i--){ trail[i].l -= dt; if (trail[i].l<=0) trail.splice(i,1); }
+}
+function drawDoor(d){
+  const x=d.x, w=d.w;
+  ctx.save();
+  if (d.portal){
+    const g = ctx.createRadialGradient(W/2, WALL+10, 2, W/2, WALL+10, 34);
+    g.addColorStop(0,'#ff7a1a'); g.addColorStop(1,'#ff7a1a00');
+    ctx.fillStyle=g; ctx.fillRect(W/2-36, -6, 72, 56);
+    ctx.fillStyle='#0a0a0c'; ctx.fillRect(x+6, 2, w-12, WALL+8);
+    ctx.strokeStyle='#ff7a1a'; ctx.lineWidth=2; ctx.strokeRect(x+6, 2, w-12, WALL+8);
+    ctx.fillStyle='#ff7a1a'; ctx.font='10px monospace'; ctx.textAlign='center';
+    ctx.fillText('SURFACE', W/2, WALL+44);
+  } else if (d.open){
+    const g = ctx.createRadialGradient(x+w/2, WALL, 2, x+w/2, WALL, 40);
+    g.addColorStop(0,'#ffb066'); g.addColorStop(1,'#ff7a1a00');
+    ctx.fillStyle=g; ctx.fillRect(x-14, -8, w+28, 64);
+    ctx.fillStyle='#000'; ctx.fillRect(x+4, 0, w-8, WALL+10);
+    ctx.strokeStyle='#ff7a1a'; ctx.lineWidth=2; ctx.strokeRect(x+4, 0, w-8, WALL+10);
+  } else if (d.sealed){
+    ctx.fillStyle='#2a2a30'; ctx.fillRect(x+4, 0, w-8, WALL+10);
+    ctx.strokeStyle='#4a4a52'; ctx.lineWidth=2; ctx.strokeRect(x+4, 0, w-8, WALL+10);
+    ctx.strokeStyle='#3a3a40'; ctx.beginPath();
+    ctx.moveTo(x+8,4); ctx.lineTo(x+w-8,WALL+6); ctx.moveTo(x+w-8,4); ctx.lineTo(x+8,WALL+6); ctx.stroke();
+  } else {
+    ctx.fillStyle='#3d2c1c'; ctx.fillRect(x+4, 0, w-8, WALL+10);
+    ctx.strokeStyle='#8a6a45'; ctx.lineWidth=2; ctx.strokeRect(x+4, 0, w-8, WALL+10);
+    ctx.fillStyle='#ff7a1a'; ctx.beginPath(); ctx.arc(x+w/2, WALL-4, 3, 0, 7); ctx.fill();
+  }
+  if (!d.portal && !room.ending){
+    const label = room.choices[d.ci].t;
+    ctx.fillStyle = d.sealed ? '#5a5a62' : '#c8b090';
+    ctx.font = '9px monospace'; ctx.textAlign='center';
+    const short = label.length>20 ? label.slice(0,19)+'…' : label;
+    ctx.fillText(short, x+w/2, WALL+44);
+  }
+  ctx.restore();
+}
+function render(){
+  ctx.fillStyle='#0c0c0f'; ctx.fillRect(0,0,W,H);
+  ctx.save(); ctx.globalAlpha=.5;
+  for (let i=0;i<70;i++){
+    const px=(i*97)%W, py=(i*57)%H;
+    ctx.fillStyle = (i%7===0)?'#16161c':'#101014';
+    ctx.fillRect(px,py,3,3);
+  }
+  ctx.restore();
+  const vg = ctx.createRadialGradient(W/2,H/2,120,W/2,H/2,420);
+  vg.addColorStop(0,'#00000000'); vg.addColorStop(1,'#000000aa');
+  ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#1c1c22'; ctx.fillRect(0,0,W,WALL); ctx.fillRect(0,H-WALL,W,WALL);
+  ctx.fillRect(0,0,WALL,H); ctx.fillRect(W-WALL,0,WALL,H);
+  ctx.fillStyle='#26262e';
+  for (let x=0;x<W;x+=32){ ctx.fillRect(x,4,30,3); ctx.fillRect(x,H-7,30,3); }
+  for (let y=0;y<H;y+=32){ ctx.fillRect(4,y,3,30); ctx.fillRect(W-7,y,3,30); }
+  ctx.strokeStyle='#3a3a44'; ctx.lineWidth=2; ctx.strokeRect(WALL-2,WALL-2,W-2*(WALL-2),H-2*(WALL-2));
+  for (const d of doors) drawDoor(d);
+  for (const t of trail){
+    ctx.globalAlpha = Math.max(0,t.l*1.4);
+    ctx.fillStyle='#ff7a1a'; ctx.beginPath(); ctx.arc(t.x,t.y,3*t.l+1,0,7); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+  for (const e of embers){
+    ctx.globalAlpha = .25+.35*Math.abs(Math.sin(e.o*2));
+    ctx.fillStyle='#ff8a2a'; ctx.beginPath(); ctx.arc(e.x,e.y,e.s,0,7); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+  const bobY = Math.sin(player.bob)*2;
+  const pg = ctx.createRadialGradient(player.x,player.y+bobY,2,player.x,player.y+bobY,26);
+  pg.addColorStop(0,'#ffb066cc'); pg.addColorStop(1,'#ff7a1a00');
+  ctx.fillStyle=pg; ctx.beginPath(); ctx.arc(player.x,player.y+bobY,26,0,7); ctx.fill();
+  ctx.save(); ctx.translate(player.x,player.y+bobY); ctx.rotate(Math.PI/4+Math.sin(player.bob*.7)*.15);
+  ctx.fillStyle='#e8e4dc'; ctx.fillRect(-7,-7,14,14);
+  ctx.fillStyle='#ff7a1a'; ctx.fillRect(-7,-7,14,4);
+  ctx.restore();
+  ctx.fillStyle='#0a0a0c'; ctx.font='bold 9px monospace'; ctx.textAlign='center';
+  ctx.fillText('YOU', player.x, player.y+bobY+24);
+}
+function loop(t){
+  const dt = Math.min(.05,(t-last)/1000); last=t;
+  if (mode!=='title'){ update(dt); render(); }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
+
