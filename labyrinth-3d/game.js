@@ -194,12 +194,15 @@ function buildRoom(id) {
 }
 function makeDoor(x, w, z, portal, ci) {
   const g = new THREE.Group();
-  const frame = box(w + 0.4, 3.8, 0.3, mat(0x2c2c36), 0, 1.9, 0);
+  // real frame: two side posts + header, the middle stays an open passage
+  const postL = box(0.2, 3.8, 0.3, mat(0x2c2c36), -w / 2 - 0.1, 1.9, 0);
+  const postR = box(0.2, 3.8, 0.3, mat(0x2c2c36), w / 2 + 0.1, 1.9, 0);
+  const header = box(w + 0.4, 0.2, 0.3, mat(0x2c2c36), 0, 3.7, 0);
   const slab = box(w, 3.6, 0.18, mat(0x3d2c1c), 0, 1.8, 0.08);
   slab.userData.isSlab = true;
   const glow = new THREE.Mesh(new THREE.PlaneGeometry(w, 3.6), new THREE.MeshBasicMaterial({ color: 0xff7a1a, transparent: true, opacity: 0 }));
   glow.position.set(0, 1.8, -0.05); glow.userData.isGlow = true;
-  g.add(frame); g.add(slab); g.add(glow);
+  g.add(postL); g.add(postR); g.add(header); g.add(slab); g.add(glow);
   g.position.set(x, 0, z);
   roomGroup.add(g);
   const d = { x: x, w: w, group: g, slab: slab, glow: glow, open: false, sealed: false, portal: portal, ci: ci };
