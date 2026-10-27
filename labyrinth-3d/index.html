@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>THE LABYRINTH — 3D — Flint's World</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { width:100%; height:100%; background:#0a0a0c; overflow:hidden; font-family:Georgia,'Times New Roman',serif; }
+  #wrap { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:#0a0a0c; }
+  #stage { position:relative; width:100vw; height:100vh; }
+  #stage canvas { position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none; }
+  #hud { position:absolute; top:0; left:0; right:0; display:flex; justify-content:space-between; align-items:center; padding:8px 12px; pointer-events:none; z-index:5; }
+  #hud .depth { font-family:'Courier New',monospace; font-size:12px; letter-spacing:3px; color:#ff7a1a; text-shadow:0 0 8px #ff7a1a66; }
+  #hud .room { font-family:'Courier New',monospace; font-size:12px; letter-spacing:1px; color:#b8b2a8; }
+  #restart { pointer-events:auto; background:none; border:1px solid #4a4a52; color:#8f8a80; font-family:'Courier New',monospace; font-size:11px; padding:4px 10px; border-radius:12px; cursor:pointer; }
+  #restart:hover { border-color:#ff7a1a; color:#ff7a1a; }
+  #fade { position:absolute; inset:0; background:#000; opacity:0; pointer-events:none; transition:opacity .3s; z-index:8; }
+  #dialog { position:absolute; left:50%; transform:translateX(-50%); bottom:12px; width:calc(100% - 24px); max-width:620px; background:#101014f2; border:1px solid #ff7a1a88; border-radius:10px; padding:14px 16px; z-index:10; display:none; box-shadow:0 0 30px #ff7a1a22; }
+  #dialog .who { font-family:'Courier New',monospace; font-size:11px; letter-spacing:2px; color:#ff7a1a; margin-bottom:6px; }
+  #dialog .txt { color:#d8d4cc; font-size:14px; line-height:1.55; margin-bottom:10px; }
+  #dialog .ch { display:flex; flex-direction:column; gap:8px; }
+  #dialog .ch button, #dialog .cont { font-family:'Courier New',monospace; font-size:13px; text-align:left; background:#1a1a1f; color:#ffb066; border:1px solid #ff7a1a66; border-radius:8px; padding:9px 12px; cursor:pointer; }
+  #dialog .ch button:hover, #dialog .cont:hover { background:#ff7a1a; color:#0a0a0c; }
+  #dialog .cont { margin-top:4px; text-align:center; }
+  #joyBase { position:absolute; width:110px; height:110px; border:2px solid #ff7a1a55; border-radius:50%; z-index:6; display:none; pointer-events:none; }
+  #joyKnob { position:absolute; left:35px; top:35px; width:40px; height:40px; background:#ff7a1a88; border-radius:50%; }
+  #title { position:absolute; inset:0; z-index:20; display:flex; flex-direction:column; align-items:center; justify-content:center; background:#0a0a0cf5; text-align:center; padding:20px; }
+  #title h1 { font-family:'Courier New',monospace; color:#ff7a1a; letter-spacing:6px; font-size:clamp(24px,6vw,44px); margin-bottom:6px; text-shadow:0 0 24px #ff7a1a88; }
+  #title h2 { font-family:'Courier New',monospace; color:#b8b2a8; letter-spacing:4px; font-size:clamp(11px,2.4vw,15px); margin-bottom:14px; }
+  #title p { color:#8f8a80; font-style:italic; font-size:clamp(12px,2.4vw,15px); max-width:520px; line-height:1.6; margin-bottom:18px; }
+  #title .ctl { color:#6e6a62; font-family:'Courier New',monospace; font-size:11px; margin-bottom:18px; line-height:1.8; }
+  #enter { font-family:'Courier New',monospace; font-size:16px; letter-spacing:2px; background:none; border:2px solid #ff7a1a; color:#ff7a1a; border-radius:24px; padding:12px 36px; cursor:pointer; }
+  #enter:hover { background:#ff7a1a; color:#0a0a0c; }
+  #title .alt { margin-top:16px; font-family:'Courier New',monospace; font-size:11px; color:#6e6a62; }
+  #title .alt a { color:#8f8a80; }
+</style>
+</head>
+<body>
+<div id="wrap"><div id="stage">
+  <div id="hud"><span class="depth" id="hudDepth">SURFACE</span><span class="room" id="hudRoom">THE THRESHOLD</span><button id="restart">↺ restart</button></div>
+  <div id="fade"></div>
+  <div id="dialog"><div class="who" id="dWho"></div><div class="txt" id="dTxt"></div><div class="ch" id="dCh"></div></div>
+  <div id="joyBase"><div id="joyKnob"></div></div>
+  <div id="title">
+    <h1>THE LABYRINTH</h1>
+    <h2>NOW IN 3D</h2>
+    <p>The Crucible was the shallow end. The flat map was the warm-up. Now you're standing in it — torchlight, embers, three doors ahead, and every answer costs something. Walk the world. Choose. Live with it.</p>
+    <div class="ctl">WASD — walk &nbsp;·&nbsp; drag to look &nbsp;·&nbsp; ← → turn &nbsp;·&nbsp; 1 / 2 — choose &nbsp;·&nbsp; touch: left stick moves, right side looks</div>
+    <button id="enter">DESCEND ▼</button>
+    <div class="alt">Prefer the flat map? <a href="https://dpark412.github.io/labyrinth/">The 2D Labyrinth still lives here.</a></div>
+  </div>
+</div></div>
+<script src="three.min.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
