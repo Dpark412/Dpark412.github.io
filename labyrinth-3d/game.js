@@ -208,8 +208,7 @@ function makeDoor(x, w, z, portal, ci) {
 function setDoorState(d, state) {
   if (state === 'open') {
     d.open = true;
-    d.slab.material = mat(0x000000);
-    d.slab.position.z = -0.7;
+    d.slab.visible = false;
     d.glow.material.opacity = 0.85;
   } else if (state === 'sealed') {
     d.sealed = true;
@@ -281,6 +280,7 @@ addEventListener('keydown', e => {
   if (mode === 'dialog') {
     if (k === '1' && dCh.children[0]) dCh.children[0].click();
     if (k === '2' && dCh.children[1]) dCh.children[1].click();
+    if (k === '3' && dCh.children[2]) dCh.children[2].click();
     if ((k === 'enter' || k === ' ') && dCh.querySelector('.cont')) dCh.querySelector('.cont').click();
   }
 });
@@ -385,7 +385,7 @@ function update(dt, t) {
     player.z = Math.min(ROOM_D / 2 - 0.7, player.z);
     if (player.z < farZ + 0.9) {
       const open = doors.find(d => d.open && Math.abs(player.x - d.x) < d.w / 2 + 0.25);
-      if (open && player.z < farZ + 0.25) { goThrough(open); return; }
+      if (open) { goThrough(open); return; }
       player.z = farZ + 0.9;
     }
   }
